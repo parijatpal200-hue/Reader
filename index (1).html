@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Reader</title>
+<link rel="icon" href="data:,">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('th')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){document.documentElement.dataset.theme='light'}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+:root{--bg:#f6f5f1;--fg:#1d1d1f;--cd:#fff;--mu:#777;--ac:#4f46e5;--bd:#0001;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+:root[data-theme=dark]{--bg:#121214;--fg:#eee;--cd:#1e1e22;--mu:#999;--ac:#8b85ff;--bd:#fff2;color-scheme:dark}
+:root[data-theme=sepia]{--bg:#f1e6cf;--fg:#3b2f1e;--cd:#f8efdc;--mu:#8a7a5e;--ac:#9a5b13;--bd:#0002}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:17px/1.4 system-ui,'Segoe UI',Roboto,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+button{background:none;border:0;color:var(--fg);font-size:20px;padding:6px 8px;border-radius:8px;cursor:pointer}
+button:active{background:var(--bd)}
+input[type=text],input[type=search]{background:var(--cd);color:var(--fg);border:1px solid var(--bd);border-radius:10px;padding:9px 12px;font-size:15px;width:100%;box-sizing:border-box}
+#top{display:flex;align-items:center;padding:8px 12px;gap:6px;background:var(--cd)}
+#top b{flex:1;font-size:22px}
+.add{background:var(--ac);color:#fff;font-size:14px;padding:8px 14px}
+#lib{flex:1;overflow:auto;padding:12px}
+.tabs{display:flex;gap:6px;margin:10px 0;overflow-x:auto}
+.tabs button{font-size:13px;border:1px solid var(--bd);white-space:nowrap}
+.tabs button.on{background:var(--ac);color:#fff}
+.gh{margin:16px 0 6px;font-weight:700;color:var(--mu);font-size:13px;text-transform:uppercase}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.bk{background:var(--cd);border-radius:12px;padding:10px;border:1px solid var(--bd);cursor:pointer;position:relative}
+.cov{aspect-ratio:3/4;border-radius:8px;display:flex;align-items:flex-end;position:relative;overflow:hidden;color:#fff;font-weight:700;font-size:16px;padding:8px;box-sizing:border-box;box-shadow:0 2px 8px #0003}.cov span{line-height:1.25;word-break:break-word}.cov em{position:absolute;bottom:6px;right:6px;font-style:normal;background:#000b;border-radius:6px;padding:2px 7px;font-size:11px}
+.bk h4{margin:10px 0 3px;font-size:16px;font-weight:700;line-height:1.3;max-height:3.9em;overflow:hidden;overflow-wrap:anywhere}
+.bk small{color:var(--mu);font-size:13px;display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.bk .x{position:absolute;top:10px;right:10px;font-size:14px;padding:0;width:30px;height:30px;color:#fff;background:#0009;border-radius:50%;line-height:30px}
+.pbar{height:4px;background:var(--bd);border-radius:2px;margin-top:6px}
+.pbar i{display:block;height:100%;background:var(--ac);border-radius:2px}
+.cont{background:var(--ac);color:#fff;border-radius:12px;padding:12px;cursor:pointer;margin-bottom:6px}
+#rd{flex:1;min-height:0;display:none}
+#panes{height:100%;display:flex;flex-direction:column}
+@media(orientation:landscape),(min-width:760px){#panes{flex-direction:row}}
+.pane{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid var(--bd);position:relative;overflow:hidden}
+.bar{display:flex;gap:0;align-items:center;padding:2px 4px;background:var(--cd);overflow-x:auto}
+.bar b{flex:1;min-width:70px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:16px;padding:0 6px}
+.stage{flex:1;overflow:auto;padding:4px;position:relative;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.wrap{position:relative;margin:0 auto;background:#fff;box-shadow:0 2px 12px #0003;border-radius:4px}
+.wrap.doc{background:var(--cd);padding:18px 20px;line-height:1.7;box-sizing:border-box;min-height:70vh;overflow-wrap:anywhere;font-family:Georgia,serif}
+.wrap img{max-width:100%}
+.wrap table{border-collapse:collapse;max-width:100%}.wrap td,.wrap th{border:1px solid var(--bd);padding:4px}
+canvas{display:block}
+:root[data-theme=dark] canvas{filter:invert(.9) hue-rotate(180deg)}
+:root[data-theme=sepia] canvas{filter:sepia(.4)}
+.tl{position:absolute;inset:0;overflow:hidden;line-height:1}
+.tl span{position:absolute;color:transparent;white-space:pre;transform-origin:0 0}
+.tl ::selection,.doc ::selection{background:#4f46e566}
+.hl{position:absolute;inset:0;pointer-events:none}
+.hl i{position:absolute;opacity:.4;mix-blend-mode:multiply}
+:root[data-theme=dark] .doc .hl i{mix-blend-mode:normal;opacity:.35}
+@keyframes fr{from{opacity:0;transform:translateX(60px) rotateY(-12deg)}}
+@keyframes fl{from{opacity:0;transform:translateX(-60px) rotateY(12deg)}}
+.fr{animation:fr .32s ease}.fl{animation:fl .32s ease}
+.foot{display:flex;align-items:center;gap:4px;padding:2px 6px;background:var(--cd)}
+.foot input{flex:1;accent-color:var(--ac)}
+.foot span{font-size:12px;color:var(--mu);min-width:62px;text-align:right;text-decoration:underline dotted;cursor:pointer}
+#ov{position:fixed;inset:0;background:var(--bg);z-index:9;display:none;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+#ov .h{display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--cd)}
+#ov .c{flex:1;overflow:auto;padding:10px}
+.row{background:var(--cd);border-radius:10px;padding:10px;margin-bottom:8px;display:flex;gap:8px;align-items:flex-start;cursor:pointer;font-size:16px}
+.row div{flex:1}.row small{color:var(--mu)}
+mark{background:#fde04799;color:inherit}
+.th{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px}
+.th div{background:var(--cd);border-radius:6px;padding:4px;text-align:center;font-size:11px;min-height:110px;cursor:pointer;overflow:hidden}
+.th canvas{width:100%;height:auto}
+#sb{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));background:var(--cd);box-shadow:0 2px 14px #0006;border-radius:30px;padding:6px 10px;display:none;gap:8px;z-index:8;align-items:center}
+#sb i{width:30px;height:30px;border-radius:50%;display:inline-block}
+#msg{font-size:12px;color:var(--mu);padding:4px 12px}
+@keyframes up{from{opacity:0;transform:translateY(14px)}}
+@keyframes pop{from{opacity:0;transform:scale(.985)}}
+.pages{position:relative;display:flex;flex-direction:column;gap:10px}
+.fin,.dc{animation:pop .4s ease}
+.bk{animation:up .45s ease both;animation-delay:calc(var(--i,0)*45ms);transition:transform .15s}
+.bk:active{transform:scale(.96)}
+.cont{animation:up .4s ease both}
+#rd,#ov,.row{animation:up .3s ease both}
+button{transition:transform .12s,background .2s}
+button:active{transform:scale(.92)}
+.pane .bar,.pane .foot{transition:margin .3s ease}
+.pane.hide .bar{margin-top:-56px}
+.pane.hide .foot{margin-bottom:-56px}
+.pgb{position:absolute;right:12px;bottom:60px;background:#000b;color:#fff;border-radius:20px;padding:5px 14px;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:3}
+.pgb.on{opacity:1}
+</style></head><body>
+<div id="top"><b>📚 My Reader</b><button id="bk">☁</button><button id="th">🌓</button><button class="add" id="imp">＋ Add books</button></div>
+<div id="msg"></div>
+<div id="lib"></div>
+<div id="rd"><div id="panes"></div></div>
+<div id="ov"></div>
+<div id="sb"><i data-c="#facc15" style="background:#facc15"></i><i data-c="#4ade80" style="background:#4ade80"></i><i data-c="#60a5fa" style="background:#60a5fa"></i><i data-c="#f472b6" style="background:#f472b6"></i></div>
+<input type="file" id="fi" multiple accept=".pdf,.docx,.pptx,.txt,.md" hidden>
+<script>
+const $=(s,e=document)=>e.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pdfjsLib=window['pdfjs-dist/build/pdf'];
+try{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}catch(e){}
+const S={lib:[],tab:'All',q:'',panes:[],act:null};
+const LS={g:(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},s:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const dk=d=>new Date(d-new Date(d).getTimezoneOffset()*6e4).toISOString().slice(0,10);
+function stats(){const days=LS.g('days',{}),goal=LS.g('goal',20)*60;let st=0,d=Date.now();if((days[dk(d)]||0)<goal)d-=864e5;while(goal>0&&(days[dk(d)]||0)>=goal){st++;d-=864e5}return{t:days[dk(Date.now())]||0,goal,st}}
+const idb=new Promise((res,rej)=>{try{const q=indexedDB.open('reader',1);q.onupgradeneeded=()=>{q.result.createObjectStore('files');q.result.createObjectStore('meta',{keyPath:'id'})};q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)}catch(e){rej(e)}});
+const P=(st,m,...a)=>idb.then(d=>new Promise((res,rej)=>{const r=d.transaction(st,'readwrite').objectStore(st)[m](...a);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
+const ext=n=>(n.split('.').pop()||'').toLowerCase();
+const ptext=async pg=>(await pg.getTextContent()).items.map(i=>i.str).join(' ');
+function guessInst(t){const m=t.match(/((?:University|Institute|College|School|Academy)\s+of\s+(?:[A-Z][\w&.']*\s?){1,4})/)||t.match(/((?:[A-Z][\w&.']*\s){1,5}(?:University|Institute|College|School|Academy|Hospital))/);return m?m[1].trim():''}
+async function mkMeta(f,id){
+  const e=ext(f.name),base=f.name.replace(/\.[^.]+$/,'').replace(/[_.]+/g,' ').trim();
+  const m={id,name:f.name,title:f.name.replace(/\.[^.]+$/,''),ext:e,author:'',inst:'',series:'',pages:1,last:1,added:Date.now(),opened:0,bm:[],hl:[]};
+  const s=base.replace(/[\s\-–:,]*(vol(ume)?\.?|part|book|bk|ch(apter)?|#)?\s*\(?\d+\)?\s*$/i,'').trim();
+  if(s&&s!==base&&s.length>2)m.series=s;
+  try{const ab=await f.arrayBuffer();
+    if(e=='pdf'){const d=await pdfjsLib.getDocument({data:ab}).promise;m.pages=d.numPages;const i=(await d.getMetadata()).info||{};m.author=(i.Author||'').trim();m.inst=guessInst(await ptext(await d.getPage(1)));try{m.cover=await pcover(d)}catch(x){}}
+    else if(e=='docx'||e=='pptx'){const z=await JSZip.loadAsync(ab);const c=z.file('docProps/core.xml');if(c){const x=await c.async('string');m.author=((x.match(/<dc:creator>([^<]*)/)||[])[1]||'').trim();}}
+  }catch(x){}
+  if(!m.author&&base.includes(' - ')){const a=base.split(' - ').pop();if(a.split(' ').length<=4){m.author=a}}
+  return m}
+$('#imp').onclick=()=>$('#fi').click();
+$('#fi').onchange=async e=>{const fs=[...e.target.files];let n=0;
+  for(const f of fs){n++;$('#msg').textContent='Adding '+n+'/'+fs.length+': '+f.name;
+    try{const id=crypto.randomUUID();const m=await mkMeta(f,id);await P('files','put',f,id);await P('meta','put',m)}catch(x){$('#msg').textContent='Could not add '+f.name}}
+  e.target.value='';$('#msg').textContent='';loadLib()};
+$('#th').onclick=()=>{const o=['light','sepia','dark'],r=document.documentElement,n=o[(o.indexOf(r.dataset.theme)+1)%3];r.dataset.theme=n;try{localStorage.setItem('th',n)}catch(e){}};
+async function pcover(d){const pg=await d.getPage(1),v0=pg.getViewport({scale:1}),v=pg.getViewport({scale:320/v0.width}),cv=document.createElement('canvas');cv.width=v.width;cv.height=v.height;await pg.render({canvasContext:cv.getContext('2d'),viewport:v}).promise;return cv.toDataURL('image/jpeg',.72)}
+async function covers(){if(S.cv)return;S.cv=1;try{for(const m of S.lib){if(m.ext!='pdf'||m.cover||m.nc)continue;
+  try{const f=await P('files','get',m.id);const d=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;m.cover=await pcover(d)}catch(x){m.nc=1}
+  await P('meta','put',m);renderLib()}}finally{S.cv=0}}
+async function loadLib(){try{S.lib=await P('meta','getAll');S.lib.forEach(m=>{m.title=m.name.replace(/\.[^.]+$/,'')})}catch(e){$('#msg').textContent='Storage not available in this browser';S.lib=[]}renderLib();covers()}
+const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
+function renderLib(){
+  const L=$('#lib'),q=S.q.toLowerCase();
+  let items=S.lib.filter(m=>(!q||(m.title+m.author+m.series+m.inst).toLowerCase().includes(q))&&(S.tab!='Favorites'||m.fav));
+  const key={All:m=>'All books',Favorites:m=>'Favorites',Collections:m=>m.col||'No collection',Series:m=>m.series||'No series',Author:m=>m.author||'Unknown author',Institute:m=>m.inst||'Unknown institute'}[S.tab];
+  const g={};items.sort((a,b)=>a.title.localeCompare(b.title)).forEach(m=>(g[key(m)]=g[key(m)]||[]).push(m));
+  const rec=[...S.lib].filter(m=>m.opened).sort((a,b)=>b.opened-a.opened)[0];
+  let h='<input type="search" id="sq" placeholder="Search library…" value="'+esc(S.q)+'">';
+  h+='<div class="tabs">'+['All','Series','Author','Institute','Collections','Favorites'].map(t=>'<button data-t="'+t+'" class="'+(t==S.tab?'on':'')+'">'+t+'</button>').join('')+'</div>';
+  const ss=stats();h+='<div class="cont" data-goal style="background:var(--cd);color:var(--fg);border:1px solid var(--bd)">🎯 Today '+Math.floor(ss.t/60)+' / '+ss.goal/60+' min'+(ss.st?' · 🔥 '+ss.st+'-day streak':'')+'<br><small style="color:var(--mu)">Tap to change goal</small></div>';
+  if(rec&&!q)h+='<div class="cont" data-id="'+rec.id+'">▶ Continue reading<br><b>'+esc(rec.title)+'</b><br><small>Page '+rec.last+' of '+rec.pages+'</small></div>';
+  if(!S.lib.length)h+='<p style="color:var(--mu);text-align:center;margin-top:40px">Your library is empty.<br>Tap ＋ Add books to add PDF, Word, PowerPoint or text files.</p>';
+  Object.keys(g).sort().forEach(k=>{if(S.tab!='All')h+='<div class="gh">'+esc(k)+' ('+g[k].length+')</div>';
+    h+='<div class="grid">'+g[k].map((m,i)=>'<div class="bk" style="--i:'+Math.min(i,10)+'" data-id="'+m.id+'"><div class="cov" style="'+(m.cover?'background:#fff url('+m.cover+') center top/cover':'background:linear-gradient(145deg,hsl('+hue(m.title)+' 50% 45%),hsl('+((hue(m.title)+40)%360)+' 55% 30%))')+'">'+(m.cover?'':'<span>'+esc(m.title.slice(0,70))+'</span>')+'<em>'+m.ext.toUpperCase()+'</em></div><button class="x" data-del="'+m.id+'">✕</button><button class="x" style="left:10px;right:auto" data-fav="'+m.id+'">'+(m.fav?'★':'☆')+'</button><button class="x" style="left:46px;right:auto" data-col="'+m.id+'">'+(m.col?'📁':'🗂')+'</button><h4>'+esc(m.title)+'</h4><small>'+esc(m.author||'Unknown author')+'</small><small>'+(m.series?esc(m.series)+' · ':'')+m.pages+' pg · '+Math.round((m.sec||0)/60)+' min read</small><div class="pbar"><i style="width:'+Math.round(m.last/m.pages*100)+'%"></i></div></div>').join('')+'</div>'});
+  L.innerHTML=h;
+  $('#sq').oninput=e=>{S.q=e.target.value;const p=e.target.selectionStart;renderLib();const s=$('#sq');s.focus();s.setSelectionRange(p,p)};
+  L.onclick=async e=>{const t=e.target.closest('[data-t]');if(t){S.tab=t.dataset.t;return renderLib()}
+    if(e.target.closest('[data-goal]')){const v=prompt('Daily reading goal in minutes',LS.g('goal',20));if(+v>0){LS.s('goal',+v);renderLib()}return}
+    const cb=e.target.closest('[data-col]');if(cb){const m=S.lib.find(x=>x.id==cb.dataset.col),v=prompt('Collection name (e.g. Exam, Novels). Leave empty to remove.',m.col||'');if(v===null)return;m.col=v.trim();P('meta','put',m);return renderLib()}
+    const f=e.target.closest('[data-fav]');if(f){const m=S.lib.find(x=>x.id==f.dataset.fav);m.fav=!m.fav;P('meta','put',m);return renderLib()}
+    const d=e.target.closest('[data-del]');if(d){if(confirm('Remove this book from library?')){await P('files','delete',d.dataset.del);await P('meta','delete',d.dataset.del);LS.s('del',[...LS.g('del',[]),d.dataset.del]);loadLib();autoSync()}return}
+    const b=e.target.closest('[data-id]');if(b)openBook(b.dataset.id)}}
+function chunk(blocks){const o=[];let c='',n=0;for(const b of blocks){c+=b;n+=b.replace(/<[^>]*>/g,'').length;if(n>2200){o.push(c);c='';n=0}}if(c)o.push(c);return o.length?o:['<p>(empty)</p>']}
+async function openBook(id,add){
+  $('#msg').textContent='Opening…';
+  try{const m=S.lib.find(x=>x.id==id)||await P('meta','get',id);const f=await P('files','get',id);const ab=await f.arrayBuffer();
+    const p={meta:m,kind:m.ext,n:1,zoom:1,tok:0};
+    if(m.ext=='pdf'){p.pdf=await pdfjsLib.getDocument({data:ab}).promise;p.pages=p.pdf.numPages}
+    else if(m.ext=='docx'){const h=(await mammoth.convertToHtml({arrayBuffer:ab})).value;const d=new DOMParser().parseFromString(h,'text/html');p.html=chunk([...d.body.children].map(c=>c.outerHTML));p.pages=p.html.length}
+    else if(m.ext=='pptx'){const z=await JSZip.loadAsync(ab);const fs=z.file(/ppt\/slides\/slide\d+\.xml$/).sort((a,b)=>a.name.match(/\d+/)[0]-b.name.match(/\d+/)[0]);p.html=[];
+      for(const s of fs){const x=await s.async('string');const ps=(x.match(/<a:p>[\s\S]*?<\/a:p>/g)||[]).map(q=>[...q.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map(r=>r[1]).join('')).filter(Boolean);
+        p.html.push(ps.length?'<h2>'+ps[0]+'</h2>'+ps.slice(1).map(t=>'<p>'+t+'</p>').join(''):'<p><i>(slide with no text)</i></p>')}
+      if(!p.html.length)p.html=['<p>(no slides found)</p>'];p.pages=p.html.length}
+    else{const t=await f.text();p.html=chunk(t.split(/\n\s*\n/).map(q=>'<p>'+esc(q).replace(/\n/g,'<br>')+'</p>'));p.pages=p.html.length}
+    m.pages=p.pages;p.n=Math.min(Math.max(1,m.last||1),p.pages);m.opened=Date.now();P('meta','put',m);
+    if(add&&S.panes.length==1&&S.panes[0].meta.id!=id)S.panes.push(p);else S.panes=[p];
+    S.act=p;$('#lib').style.display='none';$('#top').style.display='none';$('#rd').style.display='block';$('#msg').textContent='';renderPanes();
+  }catch(x){$('#msg').textContent='Could not open this file ('+(x.message||x)+')'}}
+function renderPanes(){const B=$('#panes');B.innerHTML='';S.panes.forEach(p=>{p.el=mkPane(p);B.appendChild(p.el)});S.panes.forEach(p=>show(p,0))}
+function mkPane(p){const e=document.createElement('div');e.className='pane';e.__p=p;
+  e.innerHTML='<div class="bar"><button data-a="home">⌂</button><b>'+esc(p.meta.title)+'</b><button data-a="bm"></button><button data-a="mk">🔖</button><button data-a="se">🔍</button><button data-a="gr">▦</button><button data-a="zo">A−</button><button data-a="zi">A+</button><button data-a="sp">'+(S.panes.length>1?'✕':'⧉')+'</button></div><div class="stage"></div><div class="pgb"></div><div class="foot"><button data-a="pv">‹</button><input type="range" min="1" max="'+p.pages+'" value="'+p.n+'"><button data-a="nx">›</button><span></span></div>';
+  e.onclick=ev=>{S.act=p;const a=ev.target.closest('button')?.dataset.a;if(a)A[a](p)};
+  const r=$('input',e);r.oninput=ev=>{$('.foot span',e).textContent=ev.target.value+'/'+p.pages};r.onchange=ev=>go(p,+ev.target.value);
+  $('.foot span',e).onclick=()=>{const v=prompt('Go to page (1-'+p.pages+')',p.n);if(v)go(p,+v)};
+  const st=$('.stage',e);let tk=0;p.ly=0;
+  st.addEventListener('scroll',()=>{const y=st.scrollTop;if(Math.abs(y-p.ly)>12){e.classList.toggle('hide',y>p.ly&&y>120);p.ly=y}
+    if(tk)return;tk=requestAnimationFrame(()=>{tk=0;track(p)})},{passive:true});
+  return e}
+const A={
+  home(){S.panes=[];$('#rd').style.display='none';$('#lib').style.display='';$('#top').style.display='';loadLib();autoSync()},
+  pv:p=>go(p,p.n-1),nx:p=>go(p,p.n+1),
+  zi:p=>{p.zoom=Math.min(2.6,p.zoom+.2);show(p,0)},zo:p=>{p.zoom=Math.max(.6,p.zoom-.2);show(p,0)},
+  bm(p){const b=p.meta.bm,i=b.indexOf(p.n);i<0?b.push(p.n):b.splice(i,1);b.sort((x,y)=>x-y);save(p);upd(p)},
+  sp(p){if(S.panes.length>1){S.panes=S.panes.filter(x=>x!=p);renderPanes()}else picker()},
+  mk:p=>marks(p),se:p=>search(p),gr:p=>grid(p)};
+function save(p){P('meta','put',p.meta)}
+function upd(p){const e=p.el;$('[data-a=bm]',e).textContent=p.meta.bm.includes(p.n)?'★':'☆';const r=$('input',e);r.value=p.n;$('.foot span',e).textContent=p.n+'/'+p.pages}
+function track(p){const st=$('.stage',p.el),W=p.wraps;if(!W||!W.length)return;const box=W[0].parentNode,y=st.scrollTop-box.offsetTop+st.clientHeight*.3;
+  let lo=0,hi=W.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(W[m].offsetTop<=y)lo=m;else hi=m-1}
+  const n=lo+1;if(n!=p.n){p.n=n;p.meta.last=n;p.meta.opened=Date.now();clearTimeout(p.sv);p.sv=setTimeout(()=>save(p),700);upd(p)}
+  const b=$('.pgb',p.el);b.textContent=n+' / '+p.pages;b.classList.add('on');clearTimeout(p.bt);p.bt=setTimeout(()=>b.classList.remove('on'),1300)}
+function go(p,n){n=Math.min(p.pages,Math.max(1,n));const w=p.wraps&&p.wraps[n-1];if(!w)return;
+  $('.stage',p.el).scrollTo({top:w.offsetTop+w.parentNode.offsetTop-6,behavior:'smooth'});p.n=n;p.meta.last=n;save(p);upd(p)}
+async function show(p){
+  const t=++p.tok,st=$('.stage',p.el);if(p.io)p.io.disconnect();st.innerHTML='';
+  const box=document.createElement('div');box.className='pages';st.appendChild(box);
+  const w=Math.max(200,(st.clientWidth-8)*p.zoom);p.W=w;p.wraps=[];let ratio=1.414;
+  if(p.kind=='pdf'){try{const v=(await p.pdf.getPage(1)).getViewport({scale:1});ratio=v.height/v.width}catch(x){}}
+  if(t!=p.tok)return;
+  const io=new IntersectionObserver(es=>es.forEach(en=>{const wr=en.target;if(en.isIntersecting)draw(p,wr,t);else if(wr.rd&&p.kind=='pdf'){wr.rd=0;wr.innerHTML=''}}),{root:st,rootMargin:'900px 0px'});
+  for(let i=1;i<=p.pages;i++){const wr=document.createElement('div');wr.className='wrap'+(p.kind=='pdf'?'':' doc');wr.dataset.n=i;wr.style.width=w+'px';
+    if(p.kind=='pdf')wr.style.height=w*ratio+'px';else wr.style.fontSize=(17*p.zoom)+'px';
+    box.appendChild(wr);p.wraps.push(wr);io.observe(wr)}
+  p.io=io;const c=p.wraps[p.n-1];if(c)st.scrollTop=c.offsetTop+box.offsetTop-6;upd(p)}
+async function draw(p,wr,t){if(wr.rd)return;wr.rd=1;const i=+wr.dataset.n;
+  try{
+    if(p.kind=='pdf'){const pg=await p.pdf.getPage(i);if(t!=p.tok||!wr.rd)return;
+      const v0=pg.getViewport({scale:1}),sc=p.W/v0.width,vp=pg.getViewport({scale:sc}),r=Math.min(2,window.devicePixelRatio||1);
+      wr.style.height=vp.height+'px';
+      const cv=document.createElement('canvas');cv.width=vp.width*r;cv.height=vp.height*r;cv.style.width=vp.width+'px';cv.style.height=vp.height+'px';
+      const hl=document.createElement('div');hl.className='hl';const tl=document.createElement('div');tl.className='tl';tl.style.setProperty('--scale-factor',sc);
+      await pg.render({canvasContext:cv.getContext('2d'),viewport:vp,transform:[r,0,0,r,0,0]}).promise;
+      if(t!=p.tok||!wr.rd)return;
+      cv.className='fin';wr.innerHTML='';wr.append(cv,hl,tl);
+      pdfjsLib.renderTextLayer({textContentSource:await pg.getTextContent(),container:tl,viewport:vp,textDivs:[]});
+    }else{wr.innerHTML='<div class="dc">'+p.html[i-1]+'</div><div class="hl"></div>'}
+    drawHl(p,wr)}catch(x){wr.rd=0}}
+function drawHl(p,wr){const hl=$('.hl',wr);if(!hl)return;const n=+wr.dataset.n;hl.innerHTML=p.meta.hl.filter(h=>h.n==n).map(h=>h.r.map(r=>'<i style="background:'+h.c+';left:'+r[0]*100+'%;top:'+r[1]*100+'%;width:'+r[2]*100+'%;height:'+r[3]*100+'%"></i>').join('')).join('')}
+function redraw(p){(p.wraps||[]).forEach(w=>w.rd&&drawHl(p,w))}
+document.addEventListener('selectionchange',()=>{const s=getSelection(),sb=$('#sb');
+  const ok=s.rangeCount&&!s.isCollapsed&&(s.anchorNode.nodeType==3?s.anchorNode.parentElement:s.anchorNode).closest?.('.wrap');sb.style.display=ok?'flex':'none'});
+$('#sb').addEventListener('pointerdown',e=>{e.preventDefault();const c=e.target.dataset.c;if(!c)return;
+  const s=getSelection(),rg=s.getRangeAt(0),el=(s.anchorNode.nodeType==3?s.anchorNode.parentElement:s.anchorNode),wrap=el.closest('.wrap'),p=wrap.closest('.pane').__p,b=wrap.getBoundingClientRect();
+  const r=[...rg.getClientRects()].filter(q=>q.width>1).map(q=>[(q.left-b.left)/b.width,(q.top-b.top)/b.height,q.width/b.width,q.height/b.height]);
+  if(r.length){p.meta.hl.push({n:+wrap.dataset.n,c,r,t:s.toString().trim().slice(0,200)});save(p);redraw(p)}
+  s.removeAllRanges();$('#sb').style.display='none'});
+document.addEventListener('keydown',e=>{const p=S.act;if(!p||!S.panes.length||e.target.tagName=='INPUT')return;if(e.key=='ArrowRight')go(p,p.n+1);if(e.key=='ArrowLeft')go(p,p.n-1)});
+function ov(title,fn){const o=$('#ov');o.innerHTML='<div class="h"><button id="oc">✕</button><b>'+esc(title)+'</b></div><div class="c"></div>';o.style.display='flex';$('#oc').onclick=cl;fn($('.c',o))}
+const cl=()=>{$('#ov').style.display='none';$('#ov').innerHTML=''};
+function picker(){ov('Pick second book',c=>{c.innerHTML=S.lib.map(m=>'<div class="row" data-id="'+m.id+'"><div>'+esc(m.title)+'<br><small>'+esc(m.author||'')+' · '+m.pages+' pg</small></div></div>').join('')||'No books yet.';
+  c.onclick=e=>{const r=e.target.closest('[data-id]');if(r){cl();openBook(r.dataset.id,true)}}})}
+function marks(p){ov('Bookmarks and highlights',c=>{
+  const draw=()=>{const m=p.meta;c.innerHTML='<button data-x="1" style="font-size:14px;border:1px solid var(--bd)">📋 Copy all as text</button><div class="gh">Bookmarks</div>'+(m.bm.map(n=>'<div class="row" data-g="'+n+'"><div>Page '+n+'</div><button data-b="'+n+'">✕</button></div>').join('')||'<small>None yet. Tap ☆ on a page.</small>')+
+    '<div class="gh">Highlights</div>'+(m.hl.map((h,i)=>'<div class="row" data-g="'+h.n+'"><span style="color:'+h.c+'">●</span><div>'+esc(h.t)+(h.note?'<br><i>📝 '+esc(h.note)+'</i>':'')+'<br><small>Page '+h.n+'</small></div><button data-n="'+i+'">📝</button><button data-h="'+i+'">✕</button></div>').join('')||'<small>None yet. Select text to highlight.</small>')};
+  draw();c.onclick=e=>{const b=e.target.closest('[data-b]'),h=e.target.closest('[data-h]'),nb=e.target.closest('[data-n]');
+    if(e.target.closest('[data-x]')){const m=p.meta,t=m.title+'\n\n'+m.bm.map(n=>'Bookmark: page '+n).join('\n')+'\n\n'+m.hl.map(q=>'p.'+q.n+': '+q.t+(q.note?'\n  Note: '+q.note:'')).join('\n');try{navigator.clipboard.writeText(t);alert('Copied')}catch(x){alert('Copy not allowed here')}return}
+    if(b){p.meta.bm=p.meta.bm.filter(x=>x!=+b.dataset.b)}else if(nb){const hh=p.meta.hl[+nb.dataset.n],t=prompt('Note for this highlight',hh.note||'');if(t===null)return;hh.note=t}else if(h){p.meta.hl.splice(+h.dataset.h,1)}
+    else{const g=e.target.closest('[data-g]');if(g){cl();go(p,+g.dataset.g)}return}
+    save(p);draw();upd(p);redraw(p)}})}
+async function texts(p,cb){if(p.tx)return p.tx;if(p.kind=='pdf'){const t=[];for(let i=1;i<=p.pages;i++){t.push(await ptext(await p.pdf.getPage(i)));if(i%10==0)cb(i)}p.tx=t}else p.tx=p.html.map(h=>h.replace(/<[^>]*>/g,' ').replace(/\s+/g,' '));return p.tx}
+function search(p){ov('Search in book',c=>{
+  c.innerHTML='<input type="search" id="qq" placeholder="Word or question…"><p><small>Finds exact words and the best matching sentences for a question.</small></p><div id="rs"></div>';
+  const q=$('#qq');q.focus();
+  q.onkeydown=async e=>{if(e.key!='Enter')return;const s=q.value.trim().toLowerCase();if(!s)return;const R=$('#rs');R.textContent='Searching…';
+    const tx=await texts(p,i=>R.textContent='Indexing page '+i+'/'+p.pages+'…');
+    const ws=s.split(/\W+/).filter(w=>w.length>2);if(!ws.length)ws.push(s);const need=Math.max(1,Math.ceil(ws.length*.6)),hits=[];
+    tx.forEach((t,i)=>(t.match(/[^.?!]+[.?!]?/g)||[]).forEach(z=>{const l=z.toLowerCase();let sc=ws.filter(w=>l.includes(w)).length;if(sc<need)return;if(l.includes(s))sc+=5;hits.push({n:i+1,z:z.trim(),sc})}));
+    hits.sort((a,b)=>b.sc-a.sc||a.n-b.n);const top=hits.slice(0,40);
+    R.innerHTML=top.length?top.map(h=>{let z=esc(h.z.slice(0,260));ws.forEach(w=>z=z.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>'<mark>'+m+'</mark>'));return '<div class="row" data-g="'+h.n+'"><div>'+z+'<br><small>Page '+h.n+'</small></div></div>'}).join(''):'No match. Scanned PDFs (images) cannot be searched.';
+    R.onclick=ev=>{const g=ev.target.closest('[data-g]');if(g){cl();go(p,+g.dataset.g)}}}})}
+function grid(p){ov('All pages',c=>{
+  c.innerHTML='<div class="th">'+Array.from({length:p.pages},(_,i)=>'<div data-g="'+(i+1)+'" style="'+(i+1==p.n?'outline:2px solid var(--ac)':'')+'"><span class="tc"></span>'+(i+1)+(p.meta.bm.includes(i+1)?' ★':'')+'</div>').join('')+'</div>';
+  c.onclick=e=>{const g=e.target.closest('[data-g]');if(g){cl();go(p,+g.dataset.g)}};
+  const io=new IntersectionObserver(es=>es.forEach(async en=>{if(!en.isIntersecting)return;io.unobserve(en.target);const i=+en.target.dataset.g,h=$('.tc',en.target);
+    if(p.kind=='pdf'){try{const pg=await p.pdf.getPage(i),v=pg.getViewport({scale:.28}),cv=document.createElement('canvas');cv.width=v.width;cv.height=v.height;await pg.render({canvasContext:cv.getContext('2d'),viewport:v}).promise;h.appendChild(cv)}catch(x){}}
+    else h.innerHTML='<div style="font-size:10px;text-align:left;max-height:90px;overflow:hidden;color:var(--mu)">'+esc(p.html[i-1].replace(/<[^>]*>/g,' ').slice(0,120))+'</div>'}),{root:c});
+  c.querySelectorAll('.th>div').forEach(d=>io.observe(d));
+  const cur=c.querySelector('[data-g="'+p.n+'"]');cur&&cur.scrollIntoView({block:'center'})})}
+async function dl(name,data){const d=window.claude?await window.claude.use('downloads'):null;if(!d){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data]));a.download=name;document.body.appendChild(a);a.click();a.remove();return}try{await d.save({filename:name,data})}catch(e){if(e.code!='declined')alert('Could not save ('+(e.code||e.message)+')')}}
+async function backup(full){const R=$('#bm2');R.textContent='Preparing…';await loadLib();
+  const info={v:1,books:S.lib,goal:LS.g('goal',20),days:LS.g('days',{})},date=new Date().toISOString().slice(0,10);
+  if(!full){R.textContent='';return dl('reader-notes-'+date+'.json',JSON.stringify(info))}
+  const z=new JSZip();z.file('meta.json',JSON.stringify(info));
+  for(const m of S.lib){const f=await P('files','get',m.id);if(f)z.file('files/'+m.id,f)}
+  const b=await z.generateAsync({type:'blob',compression:'STORE'},x=>R.textContent='Packing '+Math.round(x.percent)+'%');R.textContent='';
+  return dl('reader-backup-'+date+'.zip',b)}
+async function restore(f){const R=$('#bm2');R.textContent='Restoring…';
+  try{let info,z;if(ext(f.name)=='zip'){z=await JSZip.loadAsync(f);info=JSON.parse(await z.file('meta.json').async('string'))}else info=JSON.parse(await f.text());
+  await loadLib();let add=0,mer=0;
+  for(const m of info.books||[]){const ex=S.lib.find(x=>x.id==m.id)||(!z&&S.lib.find(x=>x.name==m.name));
+    if(ex){ex.bm=[...new Set([...(ex.bm||[]),...(m.bm||[])])].sort((a,b)=>a-b);const have=new Set(ex.hl.map(h=>h.n+h.t));(m.hl||[]).forEach(h=>{if(!have.has(h.n+h.t))ex.hl.push(h)});if((m.opened||0)>(ex.opened||0)){ex.last=m.last;ex.opened=m.opened}ex.fav=ex.fav||m.fav;ex.col=ex.col||m.col;ex.sec=Math.max(ex.sec||0,m.sec||0);await P('meta','put',ex);mer++}
+    else if(z&&z.file('files/'+m.id)){await P('files','put',await z.file('files/'+m.id).async('blob'),m.id);await P('meta','put',m);add++}}
+  if(info.goal)LS.s('goal',info.goal);const dd=LS.g('days',{});for(const k in info.days||{})dd[k]=Math.max(dd[k]||0,info.days[k]);LS.s('days',dd);
+  R.textContent='Done: '+add+' books added, '+mer+' updated.';loadLib()}catch(x){R.textContent='Could not read this backup file.'}}
+$('#bk').onclick=()=>ov('Backup and restore',c=>{
+  c.innerHTML=driveUI()+'<p>Save a backup file, then upload it to Google Drive from your phone. To restore (on this or a new phone), choose that file from Drive.</p><p><button class="add" data-k="zip">⬇ Backup with books (ZIP)</button></p><p><button class="add" data-k="json">⬇ Notes only (small file)</button></p><p><button class="add" data-k="rs">⬆ Restore from file</button></p><div id="bm2" style="color:var(--mu)"></div><input type="file" id="rf" accept=".zip,.json" hidden>';
+  $('#rf').onchange=e=>{const f=e.target.files[0];e.target.value='';f&&restore(f)};
+  c.onclick=e=>{const k=e.target.dataset.k;if(k=='zip')backup(true);else if(k=='json')backup(false);else if(k=='rs')$('#rf').click();else if(k=='gsync')gdo()}});
+
+const G={tok:null,exp:0,cli:null,cid:'',busy:0};
+const GS='https://www.googleapis.com/drive/v3/files',GU='https://www.googleapis.com/upload/drive/v3/files';
+function driveUI(){return '<div class="row" style="display:block;cursor:default"><b>\u2601 Google Drive sync</b><p><small>Saves your books, notes and reading position in a hidden app folder in your own Drive. Other Drive files are never touched.</small></p><input type="text" id="cid" placeholder="Paste Google Client ID" value="'+esc(LS.g('cid',''))+'"><p><button class="add" data-k="gsync">Sign in and sync now</button></p><small id="gst">'+(G.tok?'Signed in':'Not signed in')+'</small></div>'}
+function gtoken(inter){return new Promise((res,rej)=>{
+  if(G.tok&&Date.now()<G.exp-60000)return res(G.tok);
+  const cid=LS.g('cid','');if(!cid)return rej(new Error('Paste your Client ID first'));
+  if(!window.google||!google.accounts)return rej(new Error('Google sign-in not loaded. Check internet'));
+  if(!G.cli||G.cid!=cid){G.cid=cid;G.cli=google.accounts.oauth2.initTokenClient({client_id:cid,scope:'https://www.googleapis.com/auth/drive.appdata',
+    callback:r=>{if(r.error){G.rej&&G.rej(new Error(r.error))}else{G.tok=r.access_token;G.exp=Date.now()+r.expires_in*1000;LS.s('gok',1);G.res&&G.res(G.tok)}},
+    error_callback:e=>G.rej&&G.rej(new Error(e.type||'sign-in cancelled'))})}
+  G.res=res;G.rej=rej;G.cli.requestAccessToken({prompt:inter?'consent':''})})}
+async function gf(url,opt={}){const t=await gtoken(false);const r=await fetch(url,{...opt,headers:{...(opt.headers||{}),Authorization:'Bearer '+t}});if(!r.ok)throw new Error('Drive error '+r.status);return r}
+async function glist(){let out=[],pt='';do{const r=await(await gf(GS+'?spaces=appDataFolder&fields=nextPageToken,files(id,name)&pageSize=1000'+(pt?'&pageToken='+pt:''))).json();out=out.concat(r.files||[]);pt=r.nextPageToken}while(pt);return out}
+async function gput(name,blob,fid){
+  const meta=fid?{}:{name,parents:['appDataFolder']};
+  const r=await gf((fid?GU+'/'+fid:GU)+'?uploadType=resumable',{method:fid?'PATCH':'POST',headers:{'Content-Type':'application/json; charset=UTF-8'},body:JSON.stringify(meta)});
+  const loc=r.headers.get('Location');if(!loc)throw new Error('Upload not started');
+  const u=await fetch(loc,{method:'PUT',body:blob});if(!u.ok)throw new Error('Upload error '+u.status)}
+async function gsync(say,inter){say=say||(()=>{});say('Signing in\u2026');await gtoken(inter);say('Reading Drive\u2026');
+  const fl=await glist(),by={};fl.forEach(f=>by[f.name]=f);
+  let info={books:[],del:[]};
+  if(by['meta.json'])info=await(await gf(GS+'/'+by['meta.json'].id+'?alt=media')).json();
+  const del=new Set([...LS.g('del',[]),...(info.del||[])]);LS.s('del',[...del]);
+  await loadLib();
+  for(const id of del){if(S.lib.find(x=>x.id==id)){await P('files','delete',id);await P('meta','delete',id)}if(by['f_'+id]){await gf(GS+'/'+by['f_'+id].id,{method:'DELETE'});delete by['f_'+id]}}
+  await loadLib();
+  for(const m of info.books||[]){if(del.has(m.id))continue;const ex=S.lib.find(x=>x.id==m.id);
+    if(ex){ex.bm=[...new Set([...(ex.bm||[]),...(m.bm||[])])].sort((a,b)=>a-b);const have=new Set(ex.hl.map(h=>h.n+h.t));(m.hl||[]).forEach(h=>{if(!have.has(h.n+h.t))ex.hl.push(h)});
+      if((m.opened||0)>(ex.opened||0)){ex.last=m.last;ex.opened=m.opened}ex.fav=ex.fav||m.fav;ex.col=ex.col||m.col;ex.sec=Math.max(ex.sec||0,m.sec||0);await P('meta','put',ex)}
+    else if(by['f_'+m.id]){say('Downloading '+m.title+'\u2026');const b=await(await gf(GS+'/'+by['f_'+m.id].id+'?alt=media')).blob();await P('files','put',b,m.id);await P('meta','put',m)}}
+  if(info.goal)LS.s('goal',info.goal);const dd=LS.g('days',{});for(const k in info.days||{})dd[k]=Math.max(dd[k]||0,info.days[k]);LS.s('days',dd);
+  await loadLib();
+  for(const m of S.lib){if(!by['f_'+m.id]){say('Uploading '+m.title+'\u2026');const b=await P('files','get',m.id);if(b)await gput('f_'+m.id,b)}}
+  say('Saving notes\u2026');
+  await gput('meta.json',new Blob([JSON.stringify({v:1,books:S.lib,goal:LS.g('goal',20),days:LS.g('days',{}),del:[...del]})],{type:'application/json'}),by['meta.json']&&by['meta.json'].id)}
+async function gdo(){const st=$('#gst'),say=t=>{if(st)st.textContent=t},cid=($('#cid')||{}).value;
+  if(!cid||!cid.trim()){say('Paste your Client ID first');return}LS.s('cid',cid.trim());
+  try{await gsync(say,true);say('Synced \u2713 '+new Date().toLocaleTimeString());loadLib()}catch(e){say('Failed: '+e.message)}}
+async function autoSync(){if(!LS.g('gok',0)||G.busy)return;G.busy=1;
+  try{await gsync(null,false);$('#msg').textContent='\u2601 Synced '+new Date().toLocaleTimeString()}catch(e){$('#msg').textContent='\u2601 Sync paused. Open \u2601 and tap Sign in and sync now'}finally{G.busy=0}}
+setInterval(()=>{if(G.tok&&Date.now()<G.exp-60000&&!document.hidden)autoSync()},180000);
+setTimeout(()=>{if(LS.g('gok',0))autoSync()},2500);
+setInterval(()=>{if(document.hidden||!S.panes.length)return;S.panes.forEach(p=>{p.meta.sec=(p.meta.sec||0)+15;if(p.meta.sec%60==0)save(p)});const days=LS.g('days',{}),k=dk(Date.now());days[k]=(days[k]||0)+15;LS.s('days',days)},15000);
+loadLib();
+</script></body></html>
